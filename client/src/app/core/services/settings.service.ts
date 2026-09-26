@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { UserSettings, IqamaOffsets } from '../models/prayer.model';
+import { UserSettings } from '../models/prayer.model';
 
 const STORAGE_KEY = 'salat-settings';
 
@@ -8,6 +8,8 @@ const DEFAULTS: UserSettings = {
   country: 'Egypt',
   method: 'auto',
   school: '0',
+  timeFormat: '12h',
+  isAutoLocation: false,
   iqamaOffsets: { fajr: 25, dhuhr: 20, asr: 15, maghrib: 10, isha: 20 }
 };
 
@@ -22,7 +24,7 @@ export class SettingsService {
   }
 
   update(partial: Partial<UserSettings>): void {
-    const merged = { ...this._settings(), ...partial };
+    const merged: UserSettings = { ...this._settings(), ...partial };
     if (partial.iqamaOffsets) {
       merged.iqamaOffsets = { ...this._settings().iqamaOffsets, ...partial.iqamaOffsets };
     }
@@ -35,7 +37,12 @@ export class SettingsService {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        return { ...DEFAULTS, ...parsed, iqamaOffsets: { ...DEFAULTS.iqamaOffsets, ...(parsed.iqamaOffsets || {}) } };
+        return {
+          ...DEFAULTS,
+          ...parsed,
+          timeFormat: parsed.timeFormat === '24h' ? '24h' : '12h',
+          iqamaOffsets: { ...DEFAULTS.iqamaOffsets, ...(parsed.iqamaOffsets || {}) }
+        };
       }
     } catch {}
     return { ...DEFAULTS };

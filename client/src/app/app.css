@@ -89,7 +89,7 @@
 }
 .next-time {
   font-family: var(--font-en); font-variant-numeric: tabular-nums;
-  font-weight: 800; font-size: clamp(46px, 12vw, 62px);
+  font-weight: 800; font-size: clamp(40px, 11vw, 58px);
   letter-spacing: .5px; line-height: 1.1; margin-top: 2px;
 }
 .next-time-sub {
@@ -188,9 +188,9 @@ main {
 .p-chip { margin-top: 6px; }
 .p-time {
   font-family: var(--font-en); font-variant-numeric: tabular-nums;
-  text-align: end; line-height: 1.35; min-width: 78px; flex-shrink: 0; white-space: nowrap;
+  text-align: end; line-height: 1.35; min-width: 86px; flex-shrink: 0; white-space: nowrap;
 }
-.p-main { font-size: 22px; font-weight: 800; letter-spacing: .3px; }
+.p-main { font-size: 21px; font-weight: 800; letter-spacing: .3px; }
 .p-count {
   display: block; font-size: 13px; font-weight: 700;
   color: #7A5C14; margin-top: 2px;
@@ -238,6 +238,29 @@ main {
 }
 .sheet h3 { font-size: 18px; margin-bottom: 14px; }
 .sec-t { font-size: 15px; font-weight: 700; margin: 16px 0 10px; }
+
+/* GPS Section */
+.gps-section { margin-bottom: 12px; }
+.btn-gps {
+  width: 100%; display: flex; align-items: center; justify-content: center;
+  gap: 10px; background: var(--gold-soft); border: 1.5px solid var(--gold);
+  border-radius: 14px; padding: 12px 16px; color: #7A5C14;
+  font-family: var(--font-ar); font-size: 15px; font-weight: 700;
+  cursor: pointer; transition: all .15s ease;
+}
+.btn-gps:hover:not(:disabled) {
+  background: #EEDEB6; border-color: #946F10; transform: translateY(-1px);
+}
+.btn-gps:disabled { opacity: .6; cursor: wait; }
+.btn-gps svg { width: 18px; height: 18px; stroke-width: 2.2; flex-shrink: 0; }
+.divider-text {
+  display: flex; align-items: center; text-align: center;
+  margin: 12px 0 14px; color: var(--muted); font-size: 12.5px;
+}
+.divider-text::before, .divider-text::after {
+  content: ''; flex: 1; border-bottom: 1px solid var(--line);
+}
+.divider-text span { padding: 0 10px; font-weight: 500; }
 
 /* Form fields */
 .field { margin-bottom: 12px; }

@@ -2,6 +2,12 @@
 <header class="topbar">
   <div class="brand">{{ i18n.t('brand') }}</div>
   <div class="top-actions">
+    <button class="icon-btn" (click)="detectLocation(true)" [attr.aria-label]="i18n.t('detectLoc')" [title]="i18n.t('detectLoc')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+      </svg>
+    </button>
     <button class="icon-btn" (click)="toggleLang()" [attr.aria-label]="i18n.isRtl() ? 'تغيير اللغة' : 'Switch Language'">
       <span class="lang-tag">{{ i18n.t('langSwitch') }}</span>
     </button>
@@ -73,12 +79,12 @@
   </div>
 
   <!-- Loading spinner -->
-  <div class="loading" *ngIf="loading()">
+  <div class="loading" *ngIf="loading() || geoLoading()">
     <div class="spinner"></div>
   </div>
 
   <!-- Prayer list -->
-  <div class="plist" *ngIf="!loading()">
+  <div class="plist" *ngIf="!loading() && !geoLoading()">
     <div *ngFor="let p of prayers"
          class="pcard"
          [class.is-next]="getCardClass(p) === 'is-next'"
@@ -125,6 +131,21 @@
     <div class="grab"></div>
     <h3 id="loc-sheet-title">{{ i18n.t('locSheet') }}</h3>
 
+    <!-- GPS Auto-Detect Button -->
+    <div class="gps-section">
+      <button class="btn-gps" (click)="detectLocation(true)" [disabled]="geoLoading()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
+        <span>{{ geoLoading() ? i18n.t('detectingLoc') : i18n.t('detectLoc') }}</span>
+      </button>
+    </div>
+
+    <div class="divider-text">
+      <span>{{ i18n.isRtl() ? 'أو اختر يدوياً' : 'Or select manually' }}</span>
+    </div>
+
     <div class="grid2">
       <div class="field">
         <label for="country-select">{{ i18n.t('countryL') }}</label>
@@ -167,6 +188,15 @@
        (click)="$event.stopPropagation()">
     <div class="grab"></div>
     <h3 id="set-sheet-title">{{ i18n.t('setSheet') }}</h3>
+
+    <!-- Time Format (12h / 24h) Selection -->
+    <div class="field">
+      <label for="time-format-select">{{ i18n.t('timeFormatL') }}</label>
+      <select id="time-format-select" [(ngModel)]="tempTimeFormat">
+        <option value="12h">{{ i18n.t('fmt12') }}</option>
+        <option value="24h">{{ i18n.t('fmt24') }}</option>
+      </select>
+    </div>
 
     <div class="field">
       <label for="school-select">{{ i18n.t('schoolL') }}</label>

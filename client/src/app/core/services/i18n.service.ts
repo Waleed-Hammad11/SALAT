@@ -23,6 +23,15 @@ const T: Record<Lang, Translations> = {
     live: 'مباشر', next: 'القادمة', now: 'الإقامة الآن', done: 'تمت',
     athanAt: 'الأذان', iqamaAt: 'الإقامة', inWord: 'بعد',
     locTz: 'التوقيت المحلي لمدينة',
+    detectLoc: 'تحديد موقعي الحالي (GPS)',
+    detectingLoc: 'جارٍ تحديد موقعك الجغرافي...',
+    locSuccess: 'تم تحديد موقعك بنجاح',
+    locDenied: 'تم رفض إذن الوصول للموقع، يرجى تفعيله من إعدادات المتصفح أو اختيار المدينة يدوياً.',
+    timeFormatL: 'نظام عرض الساعة',
+    fmt12: '12 ساعة (ص / م)',
+    fmt24: '24 ساعة',
+    am: 'ص',
+    pm: 'م',
     langSwitch: 'EN'
   },
   en: {
@@ -41,6 +50,15 @@ const T: Record<Lang, Translations> = {
     live: 'Live', next: 'Next', now: 'Iqama now', done: 'Done',
     athanAt: 'Athan', iqamaAt: 'Iqama', inWord: 'in',
     locTz: 'Local time for',
+    detectLoc: 'Detect My Location (GPS)',
+    detectingLoc: 'Detecting your location...',
+    locSuccess: 'Location detected successfully',
+    locDenied: 'Location permission denied. Please allow location access in your browser or select city manually.',
+    timeFormatL: 'Time Format',
+    fmt12: '12-Hour (AM / PM)',
+    fmt24: '24-Hour',
+    am: 'AM',
+    pm: 'PM',
     langSwitch: 'ع'
   }
 };

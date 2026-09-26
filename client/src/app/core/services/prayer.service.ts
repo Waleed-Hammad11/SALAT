@@ -6,7 +6,6 @@ import { PrayerResponse, Country, CalcMethod } from '../models/prayer.model';
 
 @Injectable({ providedIn: 'root' })
 export class PrayerService {
-  // Uses relative path so both local proxy and production reverse-proxy work seamlessly
   private baseUrl = '/api';
 
   constructor(private http: HttpClient) {}
@@ -17,6 +16,17 @@ export class PrayerService {
       { params: { city, country, method, school } }
     ).pipe(
       timeout(8000),
+      retry(1),
+      map(res => res.data)
+    );
+  }
+
+  getTimingsByCoords(lat: number, lng: number, method: string = 'auto', school: string = '0'): Observable<PrayerResponse> {
+    return this.http.get<{ success: boolean; data: PrayerResponse }>(
+      `${this.baseUrl}/prayer/times-by-coords`,
+      { params: { lat: lat.toString(), lng: lng.toString(), method, school } }
+    ).pipe(
+      timeout(10000),
       retry(1),
       map(res => res.data)
     );

@@ -18,10 +18,19 @@ const userSettingsSchema = new mongoose.Schema({
     default: 'Egypt',
     trim: true
   },
+  coordinates: {
+    latitude: Number,
+    longitude: Number
+  },
+  timeFormat: {
+    type: String,
+    enum: ['12h', '24h'],
+    default: '12h'
+  },
   method: {
     type: String,
     default: 'auto',
-    enum: ['auto', '1', '2', '3', '4', '5', '8', '9', '10', '13', '15', '16']
+    enum: ['auto', '1', '2', '3', '4', '5', '8', '9', '10', '13', '15', '16', '17', '18', '20', '21', '23', '99']
   },
   school: {
     type: String,

@@ -15,6 +15,8 @@ export interface HijriDate {
 }
 
 export interface PrayerResponse {
+  city?: string;
+  country?: string;
   timings: PrayerTimings;
   hijri: HijriDate;
   gregorian: string;
@@ -51,6 +53,8 @@ export interface UserSettings {
   country: string;
   method: string;
   school: string;
+  timeFormat: '12h' | '24h';
+  isAutoLocation?: boolean;
   iqamaOffsets: IqamaOffsets;
 }
 

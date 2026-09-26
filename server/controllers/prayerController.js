@@ -11,7 +11,7 @@ function sanitizeInput(val, maxLen = 100) {
 
 /**
  * GET /api/prayer/times?city=X&country=Y&method=Z&school=S
- * Public endpoint — fetches prayer times (cached via MongoDB)
+ * Public endpoint — fetches prayer times by city
  */
 exports.getTimings = async (req, res, next) => {
   try {
@@ -47,6 +47,40 @@ exports.getTimings = async (req, res, next) => {
 };
 
 /**
+ * GET /api/prayer/times-by-coords?lat=X&lng=Y&method=Z&school=S
+ * Public endpoint — fetches prayer times by geographic coordinates
+ */
+exports.getTimingsByCoords = async (req, res, next) => {
+  try {
+    const { lat, lng, method, school } = req.query;
+
+    if (lat === undefined || lng === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'خطوط الطول والعرض مطلوبة'
+      });
+    }
+
+    const data = await aladhanService.getTimingsByCoords(
+      lat,
+      lng,
+      sanitizeInput(method, 20) || 'auto',
+      sanitizeInput(school, 5) || '0'
+    );
+
+    res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      message: error.message || 'تعذر جلب مواقيت الصلاة لموقعك الحالي'
+    });
+  }
+};
+
+/**
  * GET /api/prayer/times/today
  * Auth required — uses user's saved location
  */
@@ -61,12 +95,22 @@ exports.getMyTimings = async (req, res, next) => {
       });
     }
 
-    const data = await aladhanService.getTimingsByCity(
-      settings.city,
-      settings.country,
-      settings.method,
-      settings.school
-    );
+    let data;
+    if (settings.coordinates && settings.coordinates.latitude && settings.coordinates.longitude) {
+      data = await aladhanService.getTimingsByCoords(
+        settings.coordinates.latitude,
+        settings.coordinates.longitude,
+        settings.method,
+        settings.school
+      );
+    } else {
+      data = await aladhanService.getTimingsByCity(
+        settings.city,
+        settings.country,
+        settings.method,
+        settings.school
+      );
+    }
 
     res.json({
       success: true,
@@ -77,6 +121,7 @@ exports.getMyTimings = async (req, res, next) => {
           country: settings.country,
           method: settings.method,
           school: settings.school,
+          timeFormat: settings.timeFormat || '12h',
           iqamaOffsets: settings.iqamaOffsets
         }
       }

@@ -28,7 +28,7 @@ exports.getSettings = async (req, res, next) => {
  */
 exports.updateSettings = async (req, res, next) => {
   try {
-    const allowedFields = ['city', 'country', 'method', 'school'];
+    const allowedFields = ['city', 'country', 'method', 'school', 'timeFormat'];
     const updates = { updatedAt: new Date() };
 
     // Pick scalar allowed fields
@@ -37,6 +37,16 @@ exports.updateSettings = async (req, res, next) => {
         updates[field] = String(req.body[field]).trim();
       }
     });
+
+    // Handle coordinates if present
+    if (req.body.coordinates && typeof req.body.coordinates === 'object') {
+      const lat = parseFloat(req.body.coordinates.latitude);
+      const lng = parseFloat(req.body.coordinates.longitude);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        updates['coordinates.latitude'] = lat;
+        updates['coordinates.longitude'] = lng;
+      }
+    }
 
     // Handle iqamaOffsets with dotted paths to prevent wiping other prayers
     if (req.body.iqamaOffsets && typeof req.body.iqamaOffsets === 'object') {

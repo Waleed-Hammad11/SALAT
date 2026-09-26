@@ -26,6 +26,7 @@ export class App implements OnInit, OnDestroy {
   prayers = PRAYERS;
   data = signal<PrayerResponse | null>(null);
   loading = signal(false);
+  geoLoading = signal(false);
   errorMessage = signal<string | null>(null);
   countries = signal<Country[]>([]);
   methods = signal<CalcMethod[]>([]);
@@ -41,6 +42,7 @@ export class App implements OnInit, OnDestroy {
 
   // Settings sheet temp values
   tempSchool = '';
+  tempTimeFormat: '12h' | '24h' = '12h';
   tempOffsets: Record<string, number> = {};
 
   // Countdown & Time keeping
@@ -72,7 +74,15 @@ export class App implements OnInit, OnDestroy {
     // Initial data fetch
     this.loadCountries();
     this.loadMethods();
-    this.fetchTimings();
+
+    // Check if user has explicitly saved settings or should request auto location
+    const hasSavedSettings = localStorage.getItem('salat-settings');
+    if (!hasSavedSettings && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      // First visit: automatically request location permission
+      this.detectLocation(false);
+    } else {
+      this.fetchTimings();
+    }
 
     // Start 1-second ticker
     this.updateNow();
@@ -95,6 +105,70 @@ export class App implements OnInit, OnDestroy {
   onEscape(): void {
     if (this.locSheetOpen()) this.locSheetOpen.set(false);
     if (this.setSheetOpen()) this.setSheetOpen.set(false);
+  }
+
+  // ─── Automatic Geolocation ───────────
+  detectLocation(showFeedback = true): void {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      if (showFeedback) {
+        this.errorMessage.set(this.i18n.t('locDenied'));
+      }
+      this.fetchTimings();
+      return;
+    }
+
+    this.geoLoading.set(true);
+    this.errorMessage.set(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const s = this.settings.current;
+
+        this.prayerSvc.getTimingsByCoords(lat, lng, s.method, s.school).subscribe({
+          next: (res) => {
+            this.data.set(res);
+            this.geoLoading.set(false);
+            this.loading.set(false);
+
+            // Update user settings with detected city/country
+            const newCity = res.city || s.city;
+            const newCountry = res.country || s.country;
+            this.settings.update({
+              city: newCity,
+              country: newCountry,
+              isAutoLocation: true
+            });
+
+            this.locSheetOpen.set(false);
+            this.updateNow();
+            this.updateHeroTimer();
+            this.scheduleMidnightRefresh();
+          },
+          error: (err) => {
+            this.geoLoading.set(false);
+            if (showFeedback) {
+              this.errorMessage.set(err.error?.message || this.i18n.t('locDenied'));
+            }
+            this.fetchTimings();
+          }
+        });
+      },
+      (err) => {
+        this.geoLoading.set(false);
+        if (showFeedback) {
+          this.errorMessage.set(this.i18n.t('locDenied'));
+        }
+        if (!this.data()) {
+          this.fetchTimings();
+        }
+      },
+      {
+        timeout: 10000,
+        enableHighAccuracy: true
+      }
+    );
   }
 
   // ─── Data Fetching ────────────────────
@@ -160,7 +234,7 @@ export class App implements OnInit, OnDestroy {
         this.nowMin.set(h * 60 + m + s / 60);
         return;
       } catch {
-        // Fallback to local browser time if Intl timezone format throws
+        // Fallback to local browser time
       }
     }
 
@@ -249,7 +323,6 @@ export class App implements OnInit, OnDestroy {
     return `${this.pad(h)}:${this.pad(m)}:${this.pad(s)}`;
   }
 
-  // Gracefully handles offsets >= 60 minutes
   formatMS(sec: number): string {
     sec = Math.max(0, Math.floor(sec));
     if (sec >= 3600) {
@@ -260,21 +333,44 @@ export class App implements OnInit, OnDestroy {
     return `${this.pad(m)}:${this.pad(s)}`;
   }
 
+  // 12-Hour vs 24-Hour display format
+  formatDisplayTime(hm: string): string {
+    if (!hm || hm === '--:--') return '--:--';
+    const clean = hm.split(' ')[0].trim();
+    if (this.settings.current.timeFormat === '24h') {
+      return clean;
+    }
+    const p = clean.split(':');
+    if (p.length < 2) return clean;
+    let h = parseInt(p[0], 10);
+    const m = p[1];
+    if (isNaN(h)) return clean;
+    const isPm = h >= 12;
+    h = h % 12;
+    if (h === 0) h = 12;
+    const suffix = isPm ? this.i18n.t('pm') : this.i18n.t('am');
+    return `${h}:${m} ${suffix}`;
+  }
+
   getCountdown(targetMin: number, fmt: string = 'hms'): string {
     const diffSec = Math.max(0, Math.round((targetMin - this.nowMin()) * 60));
     return fmt === 'ms' ? this.formatMS(diffSec) : this.formatHMS(diffSec);
   }
 
   // ─── Prayer Card Helpers ─────────────
-  getPrayerTime(id: string): string {
+  getRawPrayerTime(id: string): string {
     const d = this.data();
     if (!d || !d.timings) return '--:--';
     const key = this.capId(id) as keyof typeof d.timings;
     return d.timings[key] || '--:--';
   }
 
+  getPrayerTime(id: string): string {
+    return this.formatDisplayTime(this.getRawPrayerTime(id));
+  }
+
   getPrayerMin(id: string): number {
-    return this.toMin(this.getPrayerTime(id));
+    return this.toMin(this.getRawPrayerTime(id));
   }
 
   getCardClass(p: PrayerDef): string {
@@ -349,7 +445,7 @@ export class App implements OnInit, OnDestroy {
     return PRAYERS.find(p => p.id === (st?.prayer || 'fajr')) || PRAYERS[0];
   }
 
-  getHeroTime(): string {
+  getHeroRawTime(): string {
     const st = this.currentState();
     if (!st || !this.data()) return '--:--';
     if (st.mode === 'iqama') {
@@ -358,13 +454,17 @@ export class App implements OnInit, OnDestroy {
       const iqMin = am + (offsets[st.prayer] || 0);
       return `${this.pad(Math.floor(iqMin / 60) % 24)}:${this.pad(iqMin % 60)}`;
     }
-    return this.getPrayerTime(st.prayer);
+    return this.getRawPrayerTime(st.prayer);
+  }
+
+  getHeroTime(): string {
+    return this.formatDisplayTime(this.getHeroRawTime());
   }
 
   getHeroSub(): string {
     const st = this.currentState();
     if (!st || !this.data() || st.mode !== 'iqama') return '';
-    const athanHM = this.getPrayerTime(st.prayer);
+    const athanHM = this.formatDisplayTime(this.getRawPrayerTime(st.prayer));
     const heroTime = this.getHeroTime();
     const prefix = this.i18n.t('athanAt') + ' ';
     return `${prefix}${athanHM} · ${heroTime}`;
@@ -395,7 +495,7 @@ export class App implements OnInit, OnDestroy {
       const city = c.cities.find(x => x.code === s.city);
       return `${city?.name || s.city}${sep}${c.name}`;
     }
-    return `${s.city}${sep}${s.country}`;
+    return s.country ? `${s.city}${sep}${s.country}` : s.city;
   }
 
   // ─── Location Sheet ──────────────────
@@ -424,7 +524,8 @@ export class App implements OnInit, OnDestroy {
     this.settings.update({
       city: this.tempCity,
       country: this.tempCountry,
-      method: this.tempMethod
+      method: this.tempMethod,
+      isAutoLocation: false
     });
     this.locSheetOpen.set(false);
     this.fetchTimings();
@@ -434,6 +535,7 @@ export class App implements OnInit, OnDestroy {
   openSetSheet(): void {
     const s = this.settings.current;
     this.tempSchool = s.school;
+    this.tempTimeFormat = s.timeFormat || '12h';
     this.tempOffsets = { ...s.iqamaOffsets };
     this.setSheetOpen.set(true);
   }
@@ -444,6 +546,7 @@ export class App implements OnInit, OnDestroy {
     }
     this.settings.update({
       school: this.tempSchool,
+      timeFormat: this.tempTimeFormat,
       iqamaOffsets: this.tempOffsets as any
     });
     this.setSheetOpen.set(false);
