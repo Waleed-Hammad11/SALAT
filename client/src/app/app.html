@@ -1,0 +1,197 @@
+<!-- ═══════ TOPBAR ═══════ -->
+<header class="topbar">
+  <div class="brand">{{ i18n.t('brand') }}</div>
+  <div class="top-actions">
+    <button class="icon-btn" (click)="toggleLang()" [attr.aria-label]="i18n.isRtl() ? 'تغيير اللغة' : 'Switch Language'">
+      <span class="lang-tag">{{ i18n.t('langSwitch') }}</span>
+    </button>
+    <button class="icon-btn" (click)="openSetSheet()" [attr.aria-label]="i18n.t('setSheet')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- ═══════ HERO BANNER ═══════ -->
+<section class="hero">
+  <div class="watermark"><span>الصَّلاة</span></div>
+  <div class="hero-card" [class.iqama-mode]="isIqamaMode()">
+    <!-- Location button -->
+    <div class="loc-row">
+      <button class="loc-btn" (click)="openLocSheet()" [attr.aria-label]="i18n.t('locSheet')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+        <span class="loc-text">{{ getLocationDisplay() }}</span>
+        <span class="loc-change">{{ i18n.t('change') }}</span>
+      </button>
+    </div>
+    <hr class="hero-div">
+
+    <!-- Next prayer info -->
+    <div class="next-block">
+      <div class="next-name">
+        {{ i18n.isRtl() ? getHeroPrayerDef().ar : getHeroPrayerDef().en }}
+        <small [dir]="i18n.isRtl() ? 'ltr' : 'rtl'">
+          {{ i18n.isRtl() ? getHeroPrayerDef().en : getHeroPrayerDef().ar }}
+        </small>
+      </div>
+      <div class="next-time" dir="ltr">{{ getHeroTime() }}</div>
+      <div class="next-time-sub" dir="ltr" *ngIf="isIqamaMode()">{{ getHeroSub() }}</div>
+      <div>
+        <span class="next-timer" [class.iqama-timer]="isIqamaMode()">
+          <span class="nx-timer-label">{{ heroTimerLabel() }}</span>
+          <span class="nx-timer-sep">·</span>
+          <span class="nx-timer-val" dir="ltr">{{ heroTimer() }}</span>
+        </span>
+      </div>
+      <div class="next-sub">{{ getDateDisplay() }}</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ MAIN CONTENT ═══════ -->
+<main>
+  <!-- Error Notification Box -->
+  <div class="err-box" *ngIf="errorMessage()" role="alert">
+    <div class="err-msg">
+      <span class="err-icon">⚠️</span>
+      <span>{{ errorMessage() }}</span>
+    </div>
+    <button class="btn-retry" (click)="fetchTimings()">{{ i18n.t('retry') }}</button>
+  </div>
+
+  <div class="sec-head">
+    <h2>{{ i18n.t('today') }}</h2>
+    <button class="link-btn" (click)="openLocSheet()">
+      <span class="bkm">◈</span>
+      <span>{{ i18n.t('myCity') }}</span>
+    </button>
+  </div>
+
+  <!-- Loading spinner -->
+  <div class="loading" *ngIf="loading()">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Prayer list -->
+  <div class="plist" *ngIf="!loading()">
+    <div *ngFor="let p of prayers"
+         class="pcard"
+         [class.is-next]="getCardClass(p) === 'is-next'"
+         [class.is-iqama]="getCardClass(p) === 'is-iqama'"
+         [class.is-past]="getCardClass(p) === 'is-past'">
+      <div class="p-ar">{{ i18n.isRtl() ? p.ar : p.en }}</div>
+      <div class="p-meta">
+        <div class="p-en" [dir]="i18n.isRtl() ? 'ltr' : 'rtl'">{{ i18n.isRtl() ? p.en : p.ar }}</div>
+        <div class="p-chip" *ngIf="getChipText(p)">
+          <span class="p-state"
+                [class.chip-next]="getCardClass(p) === 'is-next'"
+                [class.chip-iqama]="getCardClass(p) === 'is-iqama'"
+                [class.chip-past]="getCardClass(p) === 'is-past'">
+            {{ getChipText(p) }}
+          </span>
+        </div>
+      </div>
+      <div class="p-time" dir="ltr">
+        <span class="p-main">{{ getPrayerTime(p.id) }}</span>
+        <span class="p-count" *ngIf="hasCountdown(p)" [dir]="i18n.dir()">
+          {{ getCardCountdown(p) }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot" *ngIf="data()">
+    <span *ngIf="data()?.offline">⚠️ {{ i18n.t('offline') }} · </span>
+    <span>{{ data()?.methodName || '' }}</span>
+    <span *ngIf="data()?.timezone"> · {{ data()?.timezone }}</span>
+  </p>
+</main>
+
+<!-- ═══════ LOCATION SHEET ═══════ -->
+<div class="sheet-back"
+     [class.open]="locSheetOpen()"
+     (click)="locSheetOpen.set(false)"
+     *ngIf="locSheetOpen()">
+  <div class="sheet"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="loc-sheet-title"
+       (click)="$event.stopPropagation()">
+    <div class="grab"></div>
+    <h3 id="loc-sheet-title">{{ i18n.t('locSheet') }}</h3>
+
+    <div class="grid2">
+      <div class="field">
+        <label for="country-select">{{ i18n.t('countryL') }}</label>
+        <select id="country-select" [(ngModel)]="tempCountry" (ngModelChange)="onTempCountryChange()">
+          <option *ngFor="let c of countries()" [value]="c.code">{{ c.name }}</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="city-select">{{ i18n.t('cityL') }}</label>
+        <select id="city-select" [(ngModel)]="tempCity">
+          <option *ngFor="let c of getCitiesForCountry()" [value]="c.code">{{ c.name }}</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="method-select">{{ i18n.t('methodL') }}</label>
+      <select id="method-select" [(ngModel)]="tempMethod">
+        <option *ngFor="let m of methods()" [value]="m.id">{{ m.name }}</option>
+      </select>
+    </div>
+    <p class="hint">{{ i18n.t('methodHint') }}</p>
+
+    <div class="btn-row">
+      <button class="btn primary" (click)="saveLocation()">{{ i18n.t('save') }}</button>
+      <button class="btn ghost" (click)="locSheetOpen.set(false)">{{ i18n.t('cancel') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ SETTINGS SHEET ═══════ -->
+<div class="sheet-back"
+     [class.open]="setSheetOpen()"
+     (click)="setSheetOpen.set(false)"
+     *ngIf="setSheetOpen()">
+  <div class="sheet"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="set-sheet-title"
+       (click)="$event.stopPropagation()">
+    <div class="grab"></div>
+    <h3 id="set-sheet-title">{{ i18n.t('setSheet') }}</h3>
+
+    <div class="field">
+      <label for="school-select">{{ i18n.t('schoolL') }}</label>
+      <select id="school-select" [(ngModel)]="tempSchool">
+        <option value="0">{{ i18n.t('schoolSh') }}</option>
+        <option value="1">{{ i18n.t('schoolHa') }}</option>
+      </select>
+    </div>
+
+    <h4 class="sec-t">{{ i18n.t('iqamaT') }}</h4>
+    <div *ngFor="let p of iqamaPrayers" class="off-row">
+      <span class="nm">{{ i18n.isRtl() ? p.ar : p.en }}</span>
+      <span class="nm-en" [dir]="i18n.isRtl() ? 'ltr' : 'rtl'">{{ i18n.isRtl() ? p.en : p.ar }}</span>
+      <input type="number"
+             min="0"
+             max="60"
+             [id]="'offset-' + p.id"
+             [attr.aria-label]="(i18n.isRtl() ? p.ar : p.en) + ' ' + i18n.t('iqamaT')"
+             [(ngModel)]="tempOffsets[p.id]">
+    </div>
+    <p class="hint">{{ i18n.t('offHint') }}</p>
+
+    <div class="btn-row">
+      <button class="btn primary" (click)="saveSettings()">{{ i18n.t('save') }}</button>
+      <button class="btn ghost" (click)="setSheetOpen.set(false)">{{ i18n.t('cancel') }}</button>
+    </div>
+  </div>
+</div>

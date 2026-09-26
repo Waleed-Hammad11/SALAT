@@ -1,0 +1,58 @@
+:root {
+  --bg: #FAF4E9;
+  --banner1: #DCCDA9;
+  --banner2: #C7B489;
+  --card: #FFFFFF;
+  --ink: #211D16;
+  --muted: #8B8172;
+  --line: #EAE0CD;
+  --pill: #F3EBD8;
+  --green: #1E9E6A;
+  --gold: #A97E12;
+  --gold-soft: #F6ECD4;
+  --danger: #A32020;
+  --danger-bg: #FDEDED;
+  --danger-border: #F5C6C6;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(74,60,32,.07), 0 10px 28px rgba(74,60,32,.07);
+  --font-ar: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-cal: 'Aref Ruqaa', 'Amiri', serif;
+  --font-en: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ar);
+  min-height: 100vh;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Accessibility: Focus visible */
+:focus-visible {
+  outline: 2px solid var(--gold) !important;
+  outline-offset: 2px !important;
+}
+
+/* Accessibility: Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
