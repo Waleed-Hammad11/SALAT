@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fs = require('fs');
 const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
@@ -25,17 +26,27 @@ app.use(helmet({
   contentSecurityPolicy: false // Allow Angular inline styles and fonts
 }));
 
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? ['https://salat.app']
-  : ['http://localhost:4200', 'http://localhost:3000', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000'];
+// Origins are whitelist-driven via CLIENT_ORIGIN (comma-separated) so the
+// public deployment can be pointed at its own domain without a code change.
+const allowedOrigins = [
+  'http://localhost:4200',
+  'http://localhost:3000',
+  'http://127.0.0.1:4200',
+  'http://127.0.0.1:3000',
+  ...(process.env.CLIENT_ORIGIN || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
+];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (e.g. mobile apps, curl)
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(null, true); // Dev-friendly permissive
+    // No Origin header => same-origin navigation, curl, or a native client
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // Dev stays permissive so `ng serve` on any port just works.
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    return callback(new Error(`Origin not allowed by CORS: ${origin}`));
   },
   credentials: true
 }));
@@ -84,14 +95,24 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ───── 404 for unknown API routes ─────
+// Must be registered BEFORE the SPA fallback, otherwise unknown /api/* paths
+// get index.html with a 200 instead of a JSON error.
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'المسار غير موجود' });
+});
+
 // ───── Serve Angular (Production) ─────
-if (process.env.NODE_ENV === 'production') {
-  const clientPath = path.join(__dirname, '..', 'client', 'dist', 'client', 'browser');
+// On Vercel the static bundle is served by the CDN, so this block is skipped
+// (the built folder is not part of the function bundle).
+const clientPath = path.join(__dirname, '..', 'client', 'dist', 'client', 'browser');
+
+if (process.env.NODE_ENV === 'production' && fs.existsSync(clientPath)) {
   app.use(express.static(clientPath, { maxAge: '1y', index: false }));
 
-  // Catch-all handler compliant with Express 5 path-to-regexp (Fixes C1)
+  // SPA fallback — Express 5 compliant (no bare '*')
   app.use((req, res, next) => {
-    if (req.method !== 'GET') return next();
+    if (req.method !== 'GET' || req.path.startsWith('/api/')) return next();
     res.sendFile(path.join(clientPath, 'index.html'));
   });
 }
@@ -119,6 +140,11 @@ process.on('SIGTERM', () => {
   if (server) server.close(() => console.log('HTTP server closed'));
 });
 
-startServer();
+// Only listen when executed directly (`node server.js`).
+// When imported as a module — e.g. by the Vercel serverless entry in /api —
+// we must NOT bind a port; the platform owns the listener.
+if (require.main === module) {
+  startServer();
+}
 
 module.exports = app;
