@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+
+client/dist
+client/.angular
+.vercel
+
+.git
+.env
+.env.local
+**/.env
+!**/.env.example
+
+docs
+*.log
+.DS_Store
+client/.vscode
