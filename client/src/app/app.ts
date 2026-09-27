@@ -210,10 +210,11 @@ export class App implements OnInit, OnDestroy {
     });
   }
 
-  // ─── Timezone-Aware Time Calculation ─
-  // Phase 2: App.updateNow → PrayerStateService.resolveNowMin (a rename only).
-  // See the pointer comment on toMin() below.
-
+  // ─── Midnight Refresh ───────────────
+  // Stays in the component: it fires fetchTimings(), which manages this
+  // component's `loading` and `errorMessage`. The service owns the arrival
+  // clock, not the refresh clock. Phase 2 moved the timezone-aware clock itself
+  // (App.updateNow → PrayerStateService.resolveNowMin, a rename only).
   private scheduleMidnightRefresh(): void {
     if (this.midnightTimer) clearTimeout(this.midnightTimer);
 
