@@ -21,7 +21,7 @@ const T: Record<Lang, Translations> = {
     retry: 'إعادة المحاولة',
     offline: 'بيانات محفوظة (وضع غير متصل)',
     live: 'مباشر', next: 'القادمة', now: 'الإقامة الآن', done: 'تمت',
-    athanAt: 'الأذان', iqamaAt: 'الإقامة', inWord: 'بعد',
+    athanAt: 'الأذان', athanMute: 'إيقاف الصوت', iqamaAt: 'الإقامة', inWord: 'بعد',
     locTz: 'التوقيت المحلي لمدينة',
     detectLoc: 'تحديد موقعي الحالي (GPS)',
     detectingLoc: 'جارٍ تحديد موقعك الجغرافي...',
@@ -48,7 +48,7 @@ const T: Record<Lang, Translations> = {
     retry: 'Retry',
     offline: 'Saved data (offline mode)',
     live: 'Live', next: 'Next', now: 'Iqama now', done: 'Done',
-    athanAt: 'Athan', iqamaAt: 'Iqama', inWord: 'in',
+    athanAt: 'Athan', athanMute: 'Mute', iqamaAt: 'Iqama', inWord: 'in',
     locTz: 'Local time for',
     detectLoc: 'Detect My Location (GPS)',
     detectingLoc: 'Detecting your location...',
@@ -81,9 +81,25 @@ export class I18nService {
   toggle(): void {
     const next = this._lang() === 'ar' ? 'en' : 'ar';
     this._lang.set(next);
-    document.documentElement.lang = next;
-    document.documentElement.dir = next === 'ar' ? 'rtl' : 'ltr';
+    const root = document.documentElement;
+    root.lang = next;
+    root.dir = next === 'ar' ? 'rtl' : 'ltr';
     try { localStorage.setItem('salat-lang', next); } catch {}
+
+    // Retrigger the directional language animation in styles.css. Re-adding a
+    // class that is already there changes nothing, so a second toggle inside the
+    // animation window would silently not animate — and the page would look
+    // broken to anyone who toggles twice quickly. Reading offsetWidth flushes
+    // layout and forces the browser to treat the re-add as a NEW animation.
+    root.classList.remove('lang-swap');
+    void root.offsetWidth;
+    // All three animated blocks share one duration and one timing function, so
+    // the first animationend to arrive is the whole set finishing. No target
+    // check: nothing nested under them finishes sooner (the two infinite
+    // animations never fire it, and the sheet's entrance is unreachable while
+    // the scrim is up).
+    root.addEventListener('animationend', () => root.classList.remove('lang-swap'), { once: true });
+    root.classList.add('lang-swap');
   }
 
   formatGregorian(d: Date): string {

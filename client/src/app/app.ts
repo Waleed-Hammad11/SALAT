@@ -5,6 +5,8 @@ import { PrayerService } from './core/services/prayer.service';
 import { I18nService } from './core/services/i18n.service';
 import { SettingsService } from './core/services/settings.service';
 import { PrayerStateService } from './core/services/prayer-state.service';
+import { AudioService } from './core/services/audio.service';
+import { Subscription } from 'rxjs';
 import { ThemeChoice, ThemeService } from './core/services/theme.service';
 import { PrayerResponse, PrayerDef, Country, CalcMethod } from './core/models/prayer.model';
 
@@ -56,6 +58,9 @@ export class App implements OnInit, OnDestroy {
   // the refresh clock.
   private midnightTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Athan audio subscription
+  athanSubscription: Subscription | null = null;
+
   // Template-facing: app.html:52 and app.html:54 read these two names. They are
   // the service's own signals, not copies — aliasing keeps the template working
   // unchanged and guarantees there is exactly one countdown in the app.
@@ -77,6 +82,7 @@ export class App implements OnInit, OnDestroy {
     public settings: SettingsService,
     private prayerSvc: PrayerService,
     private prayerState: PrayerStateService,
+    private audioSvc: AudioService,
     private injector: Injector
   ) {
     this.heroTimer = this.prayerState.heroTimer;
@@ -106,6 +112,18 @@ export class App implements OnInit, OnDestroy {
     // baseline, then arms the interval.
     this.prayerState.start();
 
+    // Athan fires on arrival — the arrival carries the prayer that is due, which
+    // is NOT the next one the hero card is already counting down to.
+    this.athanSubscription = this.prayerState.prayerArrived$.subscribe(arrival => {
+      this.audioSvc.playAthan(arrival.prayerId);
+    });
+
+    // Prime audio on the first gesture; browsers block unattended playback.
+    // `{ once: true }` is enough — unlock() is idempotent, so whichever event
+    // lands first wins and the other listener never gets a useful second run.
+    addEventListener('pointerdown', () => this.audioSvc.unlock(), { once: true });
+    addEventListener('keydown', () => this.audioSvc.unlock(), { once: true });
+
     // Schedule automatic midnight refresh
     this.scheduleMidnightRefresh();
   }
@@ -113,6 +131,7 @@ export class App implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.prayerState.stop();
     if (this.midnightTimer) clearTimeout(this.midnightTimer);
+    if (this.athanSubscription) this.athanSubscription.unsubscribe();
   }
 
   // Accessibility: Close sheets on Escape key
@@ -509,6 +528,17 @@ export class App implements OnInit, OnDestroy {
     });
     this.setSheetOpen.set(false);
     this.fetchTimings();
+  }
+
+  // ─── Athan Audio ──────────────────
+  //
+  // Plays itself on arrival (see ngOnInit). The only control is mute.
+  isPlayingAthan(): boolean {
+    return this.audioSvc.playing();
+  }
+
+  muteAthan(): void {
+    this.audioSvc.mute();
   }
 
   // ─── Theme (Phase 3) ─────────────────
