@@ -29,6 +29,7 @@ const connectDB = async () => {
     globalThis.__salatMongoConn = conn;
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
+    globalThis.__salatDbError = error.message;
     console.error(`❌ MongoDB Error: ${error.message}`);
     console.log('⚠️ Server running in resilient mode — prayer API operates directly via Aladhan API');
   }

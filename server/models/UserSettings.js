@@ -50,15 +50,17 @@ const userSettingsSchema = new mongoose.Schema({
   }
 });
 
-// Auto-update timestamp
-userSettingsSchema.pre('save', function (next) {
+// Auto-update timestamp.
+// Promise-style hooks: Mongoose 9 does not pass `next` to document middleware,
+// so calling it would throw. `timestamps: true` is preferred in production,
+// but these hooks keep behaviour identical for plain `save()` and
+// `findOneAndUpdate()` without a broader schema change.
+userSettingsSchema.pre('save', function () {
   this.updatedAt = Date.now();
-  next();
 });
 
-userSettingsSchema.pre('findOneAndUpdate', function (next) {
+userSettingsSchema.pre('findOneAndUpdate', function () {
   this.set({ updatedAt: Date.now() });
-  next();
 });
 
-module.exports = mongoose.model('UserSettings', userSettingsSchema);
+module.exports = mongoose.models.UserSettings || mongoose.model('UserSettings', userSettingsSchema);

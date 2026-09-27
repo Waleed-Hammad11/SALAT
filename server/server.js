@@ -75,6 +75,22 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
+// ───── Database Warmup ─────
+// MUST be registered before the routers below. A middleware added after a
+// route handler never runs for that route, and with `bufferCommands: false`
+// every query would throw instantly on a cold serverless start.
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState === 1) return next();
+  try {
+    await connectDB();
+  } catch (error) {
+    // Never fail a request on infrastructure: the prayer endpoints degrade to
+    // the Aladhan API and then to the local fallback on their own.
+    console.error('DB warmup failed:', error.message);
+  }
+  next();
+});
+
 // ───── API Routes ─────
 app.use('/api/auth', authRoutes);
 app.use('/api/prayer', prayerRoutes);
@@ -82,7 +98,16 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/locations', locationRoutes);
 
 // ───── Health Check ─────
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  // On a cold start the connection may not have been opened yet, so attempt it
+  // here and only then read readyState — otherwise this endpoint reports a
+  // stale "disconnected" for an instance that connects fine moments later.
+  if (mongoose.connection.readyState !== 1) {
+    try {
+      await connectDB();
+    } catch (_) { /* connectDB logs; the state below is the real answer */ }
+  }
+
   const dbState = mongoose.connection.readyState;
   const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
 
@@ -91,7 +116,14 @@ app.get('/api/health', (req, res) => {
     message: '🕌 SALAT API is running',
     timestamp: new Date().toISOString(),
     env: process.env.NODE_ENV || 'development',
-    database: dbStatus
+    database: dbStatus,
+    // Diagnostics — presence and shape only, never the secret itself.
+    db: {
+      uriConfigured: Boolean(process.env.MONGO_URI),
+      uriScheme: process.env.MONGO_URI ? process.env.MONGO_URI.split(':')[0] : null,
+      readyState: dbState,
+      lastError: globalThis.__salatDbError || null
+    }
   });
 });
 
