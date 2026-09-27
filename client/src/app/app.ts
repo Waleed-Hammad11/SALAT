@@ -1,10 +1,11 @@
-import { Component, OnInit, OnDestroy, HostListener, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, signal, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PrayerService } from './core/services/prayer.service';
 import { I18nService } from './core/services/i18n.service';
 import { SettingsService } from './core/services/settings.service';
-import { PrayerResponse, PrayerDef, PrayerState, Country, CalcMethod } from './core/models/prayer.model';
+import { PrayerStateService } from './core/services/prayer-state.service';
+import { PrayerResponse, PrayerDef, Country, CalcMethod } from './core/models/prayer.model';
 
 const PRAYERS: PrayerDef[] = [
   { id: 'fajr', ar: 'الفجر', en: 'Fajr' },
@@ -46,25 +47,29 @@ export class App implements OnInit, OnDestroy {
   tempOffsets: Record<string, number> = {};
 
   // Countdown & Time keeping
-  private tickInterval: ReturnType<typeof setInterval> | null = null;
+  //
+  // Phase 2: the 1 Hz clock, the countdown state and the arrival event moved to
+  // PrayerStateService. This component keeps ONE timer handle — the midnight
+  // refresh, which drives fetchTimings() and therefore this component's own
+  // `loading` / `errorMessage` state. The service owns the arrival clock, not
+  // the refresh clock.
   private midnightTimer: ReturnType<typeof setTimeout> | null = null;
-  nowMin = signal(0);
 
-  currentState = computed<PrayerState | null>(() => {
-    const d = this.data();
-    const n = this.nowMin();
-    if (!d) return null;
-    return this.calcState(d, n);
-  });
-
-  heroTimer = signal('--:--:--');
-  heroTimerLabel = signal('');
+  // Template-facing: app.html:52 and app.html:54 read these two names. They are
+  // the service's own signals, not copies — aliasing keeps the template working
+  // unchanged and guarantees there is exactly one countdown in the app.
+  readonly heroTimer: Signal<string>;
+  readonly heroTimerLabel: Signal<string>;
 
   constructor(
     public i18n: I18nService,
     public settings: SettingsService,
-    private prayerSvc: PrayerService
-  ) {}
+    private prayerSvc: PrayerService,
+    private prayerState: PrayerStateService
+  ) {
+    this.heroTimer = this.prayerState.heroTimer;
+    this.heroTimerLabel = this.prayerState.heroTimerLabel;
+  }
 
   ngOnInit(): void {
     // Apply saved language & direction
@@ -84,19 +89,17 @@ export class App implements OnInit, OnDestroy {
       this.fetchTimings();
     }
 
-    // Start 1-second ticker
-    this.updateNow();
-    this.tickInterval = setInterval(() => {
-      this.updateNow();
-      this.updateHeroTimer();
-    }, 1000);
+    // Start the 1-second ticker: resolves the city clock and the hero timer
+    // synchronously (so the first painted frame is not zero), seeds the arrival
+    // baseline, then arms the interval.
+    this.prayerState.start();
 
     // Schedule automatic midnight refresh
     this.scheduleMidnightRefresh();
   }
 
   ngOnDestroy(): void {
-    if (this.tickInterval) clearInterval(this.tickInterval);
+    this.prayerState.stop();
     if (this.midnightTimer) clearTimeout(this.midnightTimer);
   }
 
@@ -142,8 +145,8 @@ export class App implements OnInit, OnDestroy {
             });
 
             this.locSheetOpen.set(false);
-            this.updateNow();
-            this.updateHeroTimer();
+            this.prayerState.setTimings(res);
+            this.prayerState.syncNow();
             this.scheduleMidnightRefresh();
           },
           error: (err) => {
@@ -181,8 +184,8 @@ export class App implements OnInit, OnDestroy {
       next: (res) => {
         this.data.set(res);
         this.loading.set(false);
-        this.updateNow();
-        this.updateHeroTimer();
+        this.prayerState.setTimings(res);
+        this.prayerState.syncNow();
         this.scheduleMidnightRefresh();
       },
       error: (err) => {
@@ -208,39 +211,8 @@ export class App implements OnInit, OnDestroy {
   }
 
   // ─── Timezone-Aware Time Calculation ─
-  private updateNow(): void {
-    const tz = this.data()?.timezone;
-    if (tz && tz !== 'UTC') {
-      try {
-        const parts = new Intl.DateTimeFormat('en-US', {
-          timeZone: tz,
-          hour12: false,
-          hour: 'numeric',
-          minute: 'numeric',
-          second: 'numeric'
-        }).formatToParts(new Date());
-
-        let h = 0, m = 0, s = 0;
-        for (const p of parts) {
-          if (p.type === 'hour') {
-            const parsed = parseInt(p.value, 10);
-            h = parsed === 24 ? 0 : parsed;
-          } else if (p.type === 'minute') {
-            m = parseInt(p.value, 10);
-          } else if (p.type === 'second') {
-            s = parseInt(p.value, 10);
-          }
-        }
-        this.nowMin.set(h * 60 + m + s / 60);
-        return;
-      } catch {
-        // Fallback to local browser time
-      }
-    }
-
-    const now = new Date();
-    this.nowMin.set(now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60);
-  }
+  // Phase 2: App.updateNow → PrayerStateService.resolveNowMin (a rename only).
+  // See the pointer comment on toMin() below.
 
   private scheduleMidnightRefresh(): void {
     if (this.midnightTimer) clearTimeout(this.midnightTimer);
@@ -255,7 +227,21 @@ export class App implements OnInit, OnDestroy {
     }, msUntilMidnight);
   }
 
-  private toMin(hm: string): number {
+  // ─── Time Helpers ───────────────────
+  //
+  // PHASE 2 POINTER: toMin, capId, pad, formatHMS and formatMS now also exist on
+  // PrayerStateService, which is where the countdown state and the arrival event
+  // read them. The copies below stay because this component's own display
+  // methods still call them directly:
+  //   capId      → getRawPrayerTime   (and getPrayerMin → getPrayerTime, app.html:106)
+  //   toMin      → getPrayerMin
+  //   pad        → getHeroRawTime
+  //   formatHMS  → getCountdown
+  //   formatMS   → getCountdown
+  // The duplication is deliberate and scoped to this one phase — a third shared
+  // module is explicitly out of scope. Collapsing it is a later phase's job, and
+  // any such change must be behaviour-preserving.
+  toMin(hm: string): number {
     if (!hm || typeof hm !== 'string') return 0;
     const clean = hm.split(' ')[0].trim();
     const p = clean.split(':');
@@ -267,47 +253,6 @@ export class App implements OnInit, OnDestroy {
 
   capId(id: string): string {
     return id.charAt(0).toUpperCase() + id.slice(1);
-  }
-
-  private calcState(d: PrayerResponse, nowMin: number): PrayerState {
-    const order = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'];
-    const offsets = this.settings.current.iqamaOffsets;
-
-    for (const id of order) {
-      const key = this.capId(id) as keyof typeof d.timings;
-      const am = this.toMin(d.timings[key]);
-      const isRef = id === 'sunrise';
-
-      if (nowMin < am) {
-        return { mode: 'athan', prayer: id, target: am };
-      }
-      if (!isRef) {
-        const offsetVal = offsets[id] !== undefined ? offsets[id] : 0;
-        const iq = am + offsetVal;
-        if (offsetVal > 0 && nowMin < iq) {
-          return { mode: 'iqama', prayer: id, target: iq };
-        }
-      }
-    }
-    // After isha -> tomorrow fajr
-    return { mode: 'athan', prayer: 'fajr', target: this.toMin(d.timings.Fajr) + 1440 };
-  }
-
-  private updateHeroTimer(): void {
-    const st = this.currentState();
-    if (!st) return;
-    const diffSec = Math.max(0, Math.round((st.target - this.nowMin()) * 60));
-
-    if (st.mode === 'iqama') {
-      this.heroTimerLabel.set(this.i18n.t('remI'));
-      this.heroTimer.set(this.formatMS(diffSec));
-    } else if (st.prayer === 'sunrise') {
-      this.heroTimerLabel.set(this.i18n.t('remS'));
-      this.heroTimer.set(this.formatHMS(diffSec));
-    } else {
-      this.heroTimerLabel.set(this.i18n.t('remA'));
-      this.heroTimer.set(this.formatHMS(diffSec));
-    }
   }
 
   // ─── Format Helpers ──────────────────
@@ -353,7 +298,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   getCountdown(targetMin: number, fmt: string = 'hms'): string {
-    const diffSec = Math.max(0, Math.round((targetMin - this.nowMin()) * 60));
+    const diffSec = Math.max(0, Math.round((targetMin - this.prayerState.nowMin()) * 60));
     return fmt === 'ms' ? this.formatMS(diffSec) : this.formatHMS(diffSec);
   }
 
@@ -374,12 +319,12 @@ export class App implements OnInit, OnDestroy {
   }
 
   getCardClass(p: PrayerDef): string {
-    const st = this.currentState();
+    const st = this.prayerState.currentState();
     if (!st || !this.data()) return '';
 
     const am = this.getPrayerMin(p.id);
     const offsets = this.settings.current.iqamaOffsets;
-    const n = this.nowMin();
+    const n = this.prayerState.nowMin();
 
     if (p.ref) {
       if (st.prayer === p.id && st.mode === 'athan') return 'is-next';
@@ -404,11 +349,11 @@ export class App implements OnInit, OnDestroy {
   }
 
   hasCountdown(p: PrayerDef): boolean {
-    const st = this.currentState();
+    const st = this.prayerState.currentState();
     if (!st || !this.data()) return false;
 
     const am = this.getPrayerMin(p.id);
-    const n = this.nowMin();
+    const n = this.prayerState.nowMin();
     const offsets = this.settings.current.iqamaOffsets;
 
     if (!p.ref) {
@@ -423,7 +368,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   getCardCountdown(p: PrayerDef): string {
-    const st = this.currentState();
+    const st = this.prayerState.currentState();
     if (!st || !this.data()) return '';
 
     const am = this.getPrayerMin(p.id);
@@ -433,7 +378,7 @@ export class App implements OnInit, OnDestroy {
       const iq = am + (offsets[p.id] || 0);
       return this.i18n.t('inWord') + ' ' + this.getCountdown(iq, 'ms');
     }
-    if (this.nowMin() < am) {
+    if (this.prayerState.nowMin() < am) {
       return this.i18n.t('inWord') + ' ' + this.getCountdown(am, 'hms');
     }
     return '';
@@ -441,12 +386,12 @@ export class App implements OnInit, OnDestroy {
 
   // ─── Hero Section ────────────────────
   getHeroPrayerDef(): PrayerDef {
-    const st = this.currentState();
+    const st = this.prayerState.currentState();
     return PRAYERS.find(p => p.id === (st?.prayer || 'fajr')) || PRAYERS[0];
   }
 
   getHeroRawTime(): string {
-    const st = this.currentState();
+    const st = this.prayerState.currentState();
     if (!st || !this.data()) return '--:--';
     if (st.mode === 'iqama') {
       const am = this.getPrayerMin(st.prayer);
@@ -462,7 +407,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   getHeroSub(): string {
-    const st = this.currentState();
+    const st = this.prayerState.currentState();
     if (!st || !this.data() || st.mode !== 'iqama') return '';
     const athanHM = this.formatDisplayTime(this.getRawPrayerTime(st.prayer));
     const heroTime = this.getHeroTime();
@@ -471,7 +416,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   isIqamaMode(): boolean {
-    return this.currentState()?.mode === 'iqama';
+    return this.prayerState.currentState()?.mode === 'iqama';
   }
 
   // ─── Date Display ────────────────────
