@@ -2,11 +2,100 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
+
+  <!-- PHASE 3 — MOVED HERE, and it must stay here.
+       This tag used to sit at line 9, BELOW the pre-paint script. That cannot
+       work: the parser has not reached line 9 when a script at line 5 runs, so
+       document.querySelector('meta[name="theme-color"]') returns null and the
+       browser chrome never re-tints. phase3.md asks for both "the script
+       immediately after <meta charset>" AND "one tag at index.html:9" — those
+       are mutually unsatisfiable, so the ordering constraint wins and the meta
+       moves above the script. It is a <meta>, so it is neither executable nor
+       render-blocking, and the script is still the first *executable* thing in
+       <head> and still precedes every <link> — which is the part that prevents
+       the FOUC. Exactly one such tag exists; the script updates it in place. -->
+  <meta name="theme-color" content="#DCCDA9">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       PHASE 3 — PRE-PAINT THEME RESOLUTION (dark mode).
+       DO NOT MOVE THIS BLOCK. It must stay the first EXECUTABLE element in
+       <head> — the only thing above it is <meta charset> and the
+       <meta name="theme-color"> this block updates — and before every <link>.
+
+       Why the position is the whole mechanism: a classic inline <script>
+       placed after a *pending* stylesheet is deferred until that stylesheet
+       finishes loading, so the light :root palette would paint first and the
+       dark palette would arrive a frame later — reintroducing the exact
+       flash-of-unstyled-content this block exists to prevent. index.html has
+       no application stylesheet link (the app CSS is injected at build time
+       from angular.json "styles": ["src/styles.css"]), so the only <link> that
+       can block us is the render-blocking Google Fonts stylesheet at the very
+       bottom of <head>.
+
+       CSP WARNING: this is an inline script. Today that is fine —
+       server.js sets helmet({ contentSecurityPolicy: false }) and vercel.json
+       declares no headers. If a Content-Security-Policy is ever enabled, this
+       block breaks SILENTLY: no console error, no exception, just the FOUC
+       returning. If you enable CSP, allow 'unsafe-inline' for this page or
+       reimplement this as a hashed external file.
+
+       STORAGE KEY LITERAL: 'salat-settings'. This MUST be byte-identical to
+       STORAGE_KEY in settings.service.ts, and the 'theme' field name must
+       match UserSettings.theme. The two are duplicated deliberately (this
+       script runs before Angular exists, so it cannot use SettingsService) and
+       a mismatch is COMPLETELY SILENT: the app looks right, the toggle works,
+       and the theme reverts on every single reload. Diff them on review.
+       ThemeService also carries the same literal in a comment for that reason.
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <script>
+    (function () {
+      var STORAGE_KEY = 'salat-settings';
+      // Dark counterpart of the light --banner1 (#DCCDA9) declared in the
+      // theme-color meta immediately above, so the browser chrome follows the
+      // same surface in both themes. The light value needs no write: the tag
+      // already carries it.
+      var DARK_SURFACE = '#2A2318';
+
+      var choice;
+      try {
+        choice = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}').theme;
+      } catch (e) {
+        choice = undefined;
+      }
+
+      // localStorage is user-editable and settings.service.ts load() is a
+      // type-asserted runtime JSON.parse, so coerce INDEPENDENTLY here. This
+      // script runs before any service exists and cannot assume that anything
+      // has been validated. An unrecognised value would otherwise produce
+      // data-theme="purple", which matches no rule: light applies, the
+      // segmented control shows nothing selected, and the user has no way out
+      // but to clear storage by hand.
+      if (choice !== 'light' && choice !== 'dark' && choice !== 'system') {
+        choice = 'system';
+      }
+
+      var resolved =
+        choice === 'system'
+          ? window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+          : choice;
+
+      document.documentElement.dataset.theme = resolved;
+
+      if (resolved === 'dark') {
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.content = DARK_SURFACE;
+        }
+      }
+    })();
+  </script>
+
   <title>مواقيت الصلاة · Prayer Times | SALAT</title>
   <meta name="description" content="مواقيت الصلاة — تطبيق مواقيت الصلاة مع العد التنازلي والإقامة. Prayer times with athan & iqama countdown.">
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#DCCDA9">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
 
   <!-- Preconnect Google Fonts for performance -->
