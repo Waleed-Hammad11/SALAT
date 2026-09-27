@@ -1,4 +1,26 @@
+/* ═══════ THEME TOKENS ═══════
+   PHASE 3 — dark mode.
+
+   Every colour in this app is a token here; app.css must contain ZERO colour
+   literals (grep: '#[0-9a-fA-F]{3,8}\b|rgba?\('). app.css carries only
+   var() references, with no hard-coded fallbacks — a fallback would silently
+   defeat the theme.
+
+   SPECIFICITY: the dark block is written as `:root[data-theme='dark']`, which
+   is (0,2,0) and therefore beats `:root` (0,1,0) in ANY source order. A bare
+   `[data-theme='dark']` is (0,1,0) — a tie with `:root` — so source order alone
+   would decide it, and a dark block placed above `:root` would lose every
+   single declaration with ZERO build warnings. That is the trap; this comment
+   is here so nobody "simplifies" the selector back.
+
+   `color-scheme` is declared for BOTH themes. It is not cosmetic: the select
+   POPUPS and the number-input SPINNERS are OS-rendered and cannot be styled
+   with CSS, so they follow the page's declared scheme or they stay light and
+   unreadable on a dark sheet.
+*/
 :root {
+  color-scheme: light;
+
   --bg: #FAF4E9;
   --banner1: #DCCDA9;
   --banner2: #C7B489;
@@ -18,6 +40,98 @@
   --font-ar: 'IBM Plex Sans Arabic', system-ui, sans-serif;
   --font-cal: 'Aref Ruqaa', 'Amiri', serif;
   --font-en: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+
+  /* ── Extracted from the 29 literals converted out of app.css ────────────── */
+  --scrim: rgba(30,24,12,.45);
+  --hero-watermark: #5b4a26;
+  --iqama-glow: rgba(30,158,106,.15);
+  --hover-wash: rgba(74,60,32,.1);
+  --card-next: #FFFDF4;
+  --card-iqama: #F4FBF7;
+  --field-bg: #fff;
+
+  /* ── PHASE 3 SPEC GAP — see report item 11 ────────────────────────────────
+     The phase3.md palette table names 22 colour tokens (13 pre-existing + the
+     7 new `--scrim`…`--field-bg`). app.css carried 29 colour literals across
+     27 lines, so 20 of those call sites have no token in that table, covering
+     the 10 DISTINCT literals declared below.
+
+     Each of these 10 corresponds to exactly ONE distinct literal, and its LIGHT
+     value is that literal verbatim — so light mode is byte-for-byte unchanged,
+     which is the point of a purely-additive theme phase. Mapping them onto a
+     "close enough" existing token instead would have silently altered the light
+     UI: #EEDEB6 → --gold-soft would delete the GPS button's hover outright,
+     #EAD9AE → --line would erase the countdown pill's border, and #7A5C14 →
+     --gold would lighten seven text call sites.
+
+     The dark column is derived with the table's own rule: gold-family accents
+     flip from dark-on-light to light-on-dark, and every other dark value is a
+     near-black sibling of the light surface it sits on.                          */
+
+  /* #7A5C14 — gold text on --gold-soft / --card. Seven call sites. */
+  --gold-deep: #7A5C14;
+  /* #C9B57E — the dimmed timer separator dot. */
+  --gold-faint: #C9B57E;
+  /* #EAD9AE — the countdown pill's border, so it reads against --gold-soft. */
+  --gold-line: #EAD9AE;
+  /* #EEDEB6 — .btn-gps hover background. */
+  --gold-soft-hover: #EEDEB6;
+  /* #946F10 — .btn-gps hover border, a shade deeper than --gold. */
+  --gold-hover: #946F10;
+  /* #E9DDC4 — hover state for a --pill surface (.loc-btn, .btn.ghost). */
+  --pill-hover: #E9DDC4;
+  /* #fff — text/icon colour on a FILLED surface (--green, --danger, --ink). */
+  --on-solid: #fff;
+  /* rgba(255,255,255,.6) — the dimmed separator on a filled surface. */
+  --on-solid-soft: rgba(255,255,255,.6);
+  /* #3a3225 — .btn.primary hover, on top of --ink. */
+  --ink-hover: #3a3225;
+  /* #D8CCB2 — the bottom-sheet grab handle, on top of --bg. */
+  --grab: #D8CCB2;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #14110D;
+  --banner1: #2A2318;
+  --banner2: #1F1A12;
+  --card: #1E1A15;
+  --ink: #F2EADB;
+  --muted: #A79C8B;
+  --line: #332C23;
+  --pill: #2A241C;
+  --green: #35C58C;
+  --gold: #D9AE4A;
+  --gold-soft: #2E2617;
+  --danger: #F07171;
+  --danger-bg: #2C1717;
+  --danger-border: #4A2222;
+  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.45);
+
+  --scrim: rgba(0,0,0,.62);
+  --hero-watermark: #C9B57A;
+  --iqama-glow: rgba(53,197,140,.18);
+  --hover-wash: rgba(0,0,0,.35);
+  --card-next: #262019;
+  --card-iqama: #16281F;
+  --field-bg: #15120E;
+
+  /* PHASE 3 spec-gap variables — dark column.
+     --on-solid flips to near-black: in dark mode --green, --danger and --ink
+     are all LIGHT surfaces, so light-on-fill text would be unreadable. This one
+     flip fixes the iqama timer, the chip, the retry button and .btn.primary at
+     the same time. */
+  --gold-deep: #D9AE4A;
+  --gold-faint: #8E7233;
+  --gold-line: #4A3D21;
+  --gold-soft-hover: #3D3220;
+  --gold-hover: #E8C468;
+  --pill-hover: #3A3229;
+  --on-solid: #14110D;
+  --on-solid-soft: rgba(0,0,0,.6);
+  --ink-hover: #DED3BE;
+  --grab: #4A4238;
 }
 
 *, *::before, *::after {
