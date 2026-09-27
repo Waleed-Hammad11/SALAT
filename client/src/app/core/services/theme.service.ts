@@ -55,6 +55,20 @@ export type ResolvedTheme = 'light' | 'dark';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
 /**
+ * `startViewTransition` is a recent addition to lib.dom and may be absent from
+ * this project's TypeScript version, so the capability is read off a local
+ * structural type rather than declared onto Document. Browsers without it get
+ * an instant swap, which is exactly the behaviour we had before.
+ *
+ * Deliberately NOT destructured before calling: the method requires a Document
+ * receiver, and pulling it off the object first makes it throw.
+ */
+type ViewTransitionCapable = Document & {
+  startViewTransition?: (cb: () => void) => { finished: Promise<void> };
+};
+
+
+/**
  * localStorage is user-editable and SettingsService.load() is a type-asserted
  * runtime JSON.parse, so an unrecognised stored value is a real possibility. A
  * value of "purple" (or null, or a number) would produce data-theme="purple",
@@ -162,6 +176,7 @@ export class ThemeService implements OnDestroy {
 
   private apply(): void {
     if (typeof document === 'undefined') return;
+    const root = document.documentElement;
     // The RESOLVED value, never the raw choice: CSS only knows 'light' and
     // 'dark', and writing data-theme="system" would match no rule at all.
     //
@@ -169,6 +184,34 @@ export class ThemeService implements OnDestroy {
     // and this project sets noPropertyAccessFromIndexSignature, so dot access
     // is a compile error. The resulting attribute is identical, and it is the
     // same attribute the inline script in index.html writes pre-paint.
-    document.documentElement.dataset['theme'] = this._resolved();
+    const next = this._resolved();
+
+    // No change, no repaint. The constructor lands here on every normal boot —
+    // the pre-paint script has already written the identical value — and this
+    // keeps that from costing a full-document snapshot.
+    if (root.dataset['theme'] === next) return;
+
+    const swap = (): void => {
+      root.dataset['theme'] = next;
+    };
+
+    // ── HOW THE SWAP IS PAINTED ──────────────────────────────────────────────
+    // This one write repaints ~40 elements simultaneously, and every
+    // `transition` in app.css fires with it, at three different durations. The
+    // page smears rather than switches, and on this palette the midpoint of the
+    // ink-to-cream-text interpolation is a low-contrast grey-brown, so the smear
+    // reads as a flicker rather than a fade. `.theme-swapping` (styles.css)
+    // suppresses every one of those transitions for the length of the swap; the
+    // View Transition then supplies a single 180ms cross-fade of the whole page
+    // on the compositor, so all of it moves together instead of separately.
+    const doc = document as ViewTransitionCapable;
+    if (!doc.startViewTransition) {
+      swap();
+      return;
+    }
+    root.classList.add('theme-swapping');
+    doc
+      .startViewTransition(swap)
+      .finished.finally(() => root.classList.remove('theme-swapping'));
   }
 }

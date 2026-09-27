@@ -40,7 +40,24 @@ export class PrayerStateService {
   private _data = signal<PrayerResponse | null>(null);
   private _nowMin = signal(0);
   private _heroTimer = signal('--:--:--');
-  private _heroTimerLabel = signal('');
+
+  /**
+   * The translation KEY, not the translated string — and that distinction is
+   * load-bearing.
+   *
+   * This used to hold `i18n.t('remA')` and be written from updateHeroTimer(),
+   * which runs only on start() / syncNow() / the 1 Hz tick. So switching language
+   * left the hero pill showing the OLD language for up to a second, while the
+   * rest of the page — which reads i18n.t() straight out of a template binding,
+   * and is therefore reactive — had already flipped. The pill was the one piece
+   * of translated text on screen that did not react to a language change.
+   *
+   * Storing the key and resolving it in the computed below makes the label
+   * depend on the language, so it changes in the same tick as the click. The
+   * countdown VALUE is unaffected and still advances at 1 Hz, which is correct:
+   * the number should tick, the label should not.
+   */
+  private _heroTimerKey = signal('remA');
 
   // One timer handle, one job. (The component keeps its own midnight handle.)
   private tickInterval: ReturnType<typeof setInterval> | null = null;
@@ -59,7 +76,8 @@ export class PrayerStateService {
 
   readonly nowMin = this._nowMin.asReadonly();
   readonly heroTimer = this._heroTimer.asReadonly();
-  readonly heroTimerLabel = this._heroTimerLabel.asReadonly();
+  /** Reads i18n.lang() on purpose — see _heroTimerKey. */
+  readonly heroTimerLabel = computed(() => this.i18n.t(this._heroTimerKey()));
 
   readonly currentState = computed<PrayerState | null>(() => {
     const d = this._data();
@@ -279,13 +297,13 @@ export class PrayerStateService {
     const diffSec = Math.max(0, Math.round((st.target - this._nowMin()) * 60));
 
     if (st.mode === 'iqama') {
-      this._heroTimerLabel.set(this.i18n.t('remI'));
+      this._heroTimerKey.set('remI');
       this._heroTimer.set(this.formatMS(diffSec));
     } else if (st.prayer === 'sunrise') {
-      this._heroTimerLabel.set(this.i18n.t('remS'));
+      this._heroTimerKey.set('remS');
       this._heroTimer.set(this.formatHMS(diffSec));
     } else {
-      this._heroTimerLabel.set(this.i18n.t('remA'));
+      this._heroTimerKey.set('remA');
       this._heroTimer.set(this.formatHMS(diffSec));
     }
   }

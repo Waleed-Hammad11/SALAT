@@ -593,6 +593,29 @@ describe('PrayerStateService', () => {
     expect(seen[0].prayerId).toBe('fajr');
   });
 
+  it('the hero label follows the language immediately, with no clock tick', () => {
+    const i18n = TestBed.inject(I18nService);
+    arm(utc(4, 31, 0));
+    expect(svc.heroTimerLabel()).toBe('Athan in');
+
+    // A tick was the only thing that used to rewrite this label, so before the
+    // key/computed split the pill sat on the old language for up to a full
+    // second — while every other translated string on the page, which reads
+    // i18n.t() from a template binding, had already flipped. One second of stale
+    // language is a second of the UI looking broken.
+    //
+    // The expected Arabic string is deliberately NOT spelled out here: this test
+    // is about the *dependency*, and hard-coding the glyphs would make it a
+    // second place to update when the wording changes. i18n.t() is the oracle.
+    i18n.toggle();
+    expect(svc.heroTimerLabel()).not.toBe('Athan in');
+    expect(svc.heroTimerLabel()).toBe(i18n.t('remA'));
+
+    // And back again — a second toggle must not need a tick either.
+    i18n.toggle();
+    expect(svc.heroTimerLabel()).toBe('Athan in');
+  });
+
   // ─── The 1 Hz countdown ─────────────
   // phase2.md step 7 asks for a manual "ticks at 1Hz" and "iqama countdown
   // appears and expires" check. Asserted here rather than eyeballed: a 25-minute

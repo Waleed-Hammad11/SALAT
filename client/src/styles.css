@@ -134,6 +134,44 @@
   --grab: #4A4238;
 }
 
+/* ═══════ THEME SWAP ═══════
+   Flipping data-theme changes the colour of ~40 elements in ONE frame, and every
+   `transition` in app.css then fires simultaneously — at three different
+   durations (0.15 / 0.2 / 0.3) and three different easings. The result is not a
+   fade but a smear: surfaces, text and borders each arrive at their own moment.
+
+   It is worse than ugly on THIS palette. The mid-interpolation value of ink
+   (#211D16) into cream text (#F2EADB) is a low-contrast grey-brown, and it is
+   rendered over a background that is itself mid-interpolation — so contrast
+   collapses in the middle of a 300ms window. That is the eye-strain.
+
+   One class, added by ThemeService for exactly as long as the swap lasts, kills
+   all of it. `:root.theme-swapping *` is (0,2,0) and therefore beats every
+   (0,1,0) rule in app.css in any source order — the same trap the dark block
+   above is guarded against, and for the same reason. */
+:root.theme-swapping *,
+:root.theme-swapping *::before,
+:root.theme-swapping *::after {
+  transition: none !important;
+}
+
+/* What replaces the smear: ONE compositor-driven cross-fade of the entire page.
+   A View Transition snapshots the page once and cross-fades the two snapshots,
+   so every element moves together at the same rate — the opposite of the
+   independent per-element easings it replaces.
+
+   180ms reads as a switch; the UA default of 250ms reads as a dissolve.
+
+   `mix-blend-mode` is deliberately NOT overridden. The UA default is
+   `plus-lighter`, and that is precisely what stops the midpoint of the fade from
+   dipping in luminance; forcing it to `normal` puts a visible dark flash in the
+   middle of every cream-to-near-black swap. Do not "simplify" this away. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(.4, 0, .2, 1);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -157,12 +195,44 @@ body {
 
 /* Accessibility: Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+/* ═══════ LANGUAGE SWAP ═══════
+   Switching language reverses the reading direction of the entire page — the
+   most global state change this app has, and the one place motion can actually
+   explain something rather than decorate. So: ONE animation, on the three
+   top-level content blocks, which share a duration and therefore move as a
+   single piece instead of as three.
+
+   The direction is the whole point. Text enters from the start edge of the
+   language being switched TO — Arabic from the right, English from the left. An
+   undirected fade would only say "something changed"; this says the page turned
+   around, which is what happened.
+
+   10px and 240ms: enough to register, short enough that nobody waits on their
+   own tap. Reduced motion is already handled by the global 0.01ms override
+   below, which collapses the duration and leaves the element in its natural
+   state — no separate opt-out needed. */
+@keyframes lang-in-ltr { from { opacity: 0; transform: translateX(-10px); } }
+@keyframes lang-in-rtl { from { opacity: 0; transform: translateX(10px); } }
+
+html.lang-swap app-root > * {
+  animation: lang-in-ltr 240ms cubic-bezier(.2, 0, .2, 1);
+}
+html[dir='rtl'].lang-swap app-root > * {
+  animation-name: lang-in-rtl;
+}
+
+*, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* The `*` selector above cannot reach the view-transition pseudos — they live
+     in the root's ::view-transition tree, not in the DOM — so the cross-fade has
+     to be cancelled by name or reduced-motion users still get 180ms of motion
+     on every theme switch. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none !important; }
 }
 
 /* Scrollbar */
