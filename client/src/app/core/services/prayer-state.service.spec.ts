@@ -592,4 +592,42 @@ describe('PrayerStateService', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0].prayerId).toBe('fajr');
   });
+
+  // ─── The 1 Hz countdown ─────────────
+  // phase2.md step 7 asks for a manual "ticks at 1Hz" and "iqama countdown
+  // appears and expires" check. Asserted here rather than eyeballed: a 25-minute
+  // iqama window is not something you can watch by hand, and a stopped ticker
+  // is invisible in a screenshot.
+
+  it('the hero countdown advances exactly once per second', () => {
+    arm(utc(4, 31, 0));
+    const values = [svc.heroTimer()];
+    for (let i = 0; i < 5; i++) {
+      vi.advanceTimersByTime(1000);
+      values.push(svc.heroTimer());
+    }
+    expect(values).toEqual(['00:01:00', '00:00:59', '00:00:58', '00:00:57', '00:00:56', '00:00:55']);
+  });
+
+  it('the hero countdown enters iqama mode and then expires out of it', () => {
+    arm(utc(4, 31, 0));
+    // fajr athan 04:32, iqama +25 → 04:57.
+    const at = (h: number, m: number) => {
+      vi.setSystemTime(utc(h, m, 0));
+      svc.resolveNowMin();
+      svc.syncNow();
+      return { label: svc.heroTimerLabel(), value: svc.heroTimer() };
+    };
+
+    expect(at(4, 31)).toEqual({ label: 'Athan in', value: '00:01:00' });
+
+    // The athan minute itself is already iqama mode (see the characterization
+    // spec), and the countdown switches from HH:MM:SS to MM:SS.
+    expect(at(4, 32)).toEqual({ label: 'Iqama in', value: '25:00' });
+    expect(at(4, 45)).toEqual({ label: 'Iqama in', value: '12:00' });
+    expect(at(4, 56)).toEqual({ label: 'Iqama in', value: '01:00' });
+
+    // One minute later the iqama window is closed and the target is sunrise.
+    expect(at(4, 57)).toEqual({ label: 'Sunrise in', value: '01:01:00' });
+  });
 });
