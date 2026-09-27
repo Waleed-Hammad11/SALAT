@@ -30,3 +30,7 @@ Thumbs.db
 .vercel
 
 .vercel
+
+# Orchestrator planning files (PLAN.md, phaseN.md) — not part of the app
+PLAN.md
+phase*.md
