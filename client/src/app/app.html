@@ -198,6 +198,35 @@
       </select>
     </div>
 
+    <!-- Theme (light / dark / system) — Phase 3.
+         A segmented group of three buttons, NOT a <select>: a select would be a
+         sixth native control on the hard-coded #fff background this phase
+         exists to remove, and its OS-rendered popup needs its own treatment.
+         Applies and persists on click — not on Save.
+         PHASE 3 SCOPE NOTE: these four labels use the i18n.isRtl() ternary that
+         app.html already uses for 'Or select manually' and the language-switch
+         aria-label, because adding the themeL/themeLight/themeDark/themeSystem
+         keys to i18n.service.ts is outside this phase's granted file scope.
+         Once those keys exist, swap each ternary for i18n.t('…') — one-for-one,
+         no other change. -->
+    <div class="field">
+      <span class="field-label" id="theme-label">{{ i18n.isRtl() ? 'المظهر' : 'Appearance' }}</span>
+      <div class="seg" role="group" aria-labelledby="theme-label">
+        <button class="seg-btn"
+                [class.on]="themeChoice() === 'light'"
+                [attr.aria-pressed]="themeChoice() === 'light'"
+                (click)="setTheme('light')">{{ i18n.isRtl() ? 'فاتح' : 'Light' }}</button>
+        <button class="seg-btn"
+                [class.on]="themeChoice() === 'dark'"
+                [attr.aria-pressed]="themeChoice() === 'dark'"
+                (click)="setTheme('dark')">{{ i18n.isRtl() ? 'داكن' : 'Dark' }}</button>
+        <button class="seg-btn"
+                [class.on]="themeChoice() === 'system'"
+                [attr.aria-pressed]="themeChoice() === 'system'"
+                (click)="setTheme('system')">{{ i18n.isRtl() ? 'النظام' : 'System' }}</button>
+      </div>
+    </div>
+
     <div class="field">
       <label for="school-select">{{ i18n.t('schoolL') }}</label>
       <select id="school-select" [(ngModel)]="tempSchool">

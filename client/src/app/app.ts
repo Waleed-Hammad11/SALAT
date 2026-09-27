@@ -1,10 +1,11 @@
-import { Component, OnInit, OnDestroy, HostListener, signal, Signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, Injector, signal, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PrayerService } from './core/services/prayer.service';
 import { I18nService } from './core/services/i18n.service';
 import { SettingsService } from './core/services/settings.service';
 import { PrayerStateService } from './core/services/prayer-state.service';
+import { ThemeChoice, ThemeService } from './core/services/theme.service';
 import { PrayerResponse, PrayerDef, Country, CalcMethod } from './core/models/prayer.model';
 
 const PRAYERS: PrayerDef[] = [
@@ -61,11 +62,22 @@ export class App implements OnInit, OnDestroy {
   readonly heroTimer: Signal<string>;
   readonly heroTimerLabel: Signal<string>;
 
+  // Theme (Phase 3) — the one DI member added in this phase.
+  //
+  // PHASE 3 POINTER: ThemeService is deliberately NOT a constructor parameter.
+  // A constructor parameter is a field initializer, so it would be constructed
+  // before ngOnInit — and ngOnInit reads the EXISTENCE of 'salat-settings' as
+  // its first-visit geolocation flag (see below). ThemeService writes no
+  // storage on construction, so it is safe either way, but making that safety
+  // load-bearing on a different file's invariant is a trap. Injecting the
+  // Injector instead (which has no side effects whatsoever) and resolving
+  // ThemeService lazily on first use keeps the guarantee local and obvious.
   constructor(
     public i18n: I18nService,
     public settings: SettingsService,
     private prayerSvc: PrayerService,
-    private prayerState: PrayerStateService
+    private prayerState: PrayerStateService,
+    private injector: Injector
   ) {
     this.heroTimer = this.prayerState.heroTimer;
     this.heroTimerLabel = this.prayerState.heroTimerLabel;
@@ -497,6 +509,29 @@ export class App implements OnInit, OnDestroy {
     });
     this.setSheetOpen.set(false);
     this.fetchTimings();
+  }
+
+  // ─── Theme (Phase 3) ─────────────────
+  //
+  // Resolved lazily and memoized, on FIRST USE — which in practice means the
+  // first time the settings sheet is opened, or a theme button is clicked,
+  // because the control sits behind *ngIf="setSheetOpen()". That is stronger
+  // than the "safe either way" argument above: with the sheet never opened,
+  // ThemeService is never constructed at all, so no code path here can create
+  // the first-visit key. app.theme.spec.ts pins both halves of that.
+  private themeSvc: ThemeService | null = null;
+  private get theme(): ThemeService {
+    return (this.themeSvc ??= this.injector.get(ThemeService));
+  }
+
+  /** The user's stored choice — 'system' is a valid answer here. */
+  themeChoice(): ThemeChoice {
+    return this.theme.theme();
+  }
+
+  /** Applies and persists immediately. Deliberately NOT routed through saveSettings(). */
+  setTheme(choice: ThemeChoice): void {
+    this.theme.setTheme(choice);
   }
 
   // ─── Language ────────────────────────
